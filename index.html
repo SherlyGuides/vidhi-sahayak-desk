@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Vidhi Sahayak Desk</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+  :root { --bg: #111317; --panel: #1a1d23; --ink: #e6e8eb; --muted: #8b93a0; --line: #2a2f37;
+          --accent: #8fb0e8; --accent-ink: #0f1520; --user: #222a37; --warn: #e2a96b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans Devanagari", sans-serif; }
+  header { max-width: 760px; margin: 0 auto; padding: 18px 16px 4px; display: flex; align-items: center; }
+  header h1 { flex: 1; margin: 0; font-size: 17px; font-weight: 600; letter-spacing: .2px; }
+  .newc { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 13px;
+          padding: 3px 10px; cursor: pointer; margin-right: 6px; }
+  .msg a.doc { display: inline-block; margin-top: 4px; padding: 6px 12px; border: 1px solid var(--accent);
+               border-radius: 8px; text-decoration: none; }
+  .gear { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 6px; }
+  main { max-width: 760px; margin: 0 auto; padding: 8px 16px 120px; }
+  .msg { margin: 14px 0; padding: 12px 14px; border-radius: 12px; overflow-wrap: anywhere; }
+  .msg.user { background: var(--user); white-space: pre-wrap; margin-left: 15%; }
+  .msg.bot { background: var(--panel); }
+  .msg.bot p:first-child { margin-top: 0; } .msg.bot p:last-child { margin-bottom: 0; }
+  .msg table { border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; }
+  .msg td, .msg th { border: 1px solid var(--line); padding: 4px 8px; }
+  .msg a { color: var(--accent); }
+  .dots::after { content: "…"; animation: blink 1.2s infinite; color: var(--muted); }
+  @keyframes blink { 50% { opacity: .2; } }
+  .error { color: var(--warn); }
+  form#f { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); padding: 10px 16px 16px; }
+  .bar { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+  textarea { flex: 1; resize: vertical; height: 60px; max-height: 40vh; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+             background: var(--panel); color: var(--ink); font: inherit; outline: none; }
+  textarea:focus { border-color: #3a4352; }
+  button.send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px; padding: 0 18px;
+                font-weight: 600; cursor: pointer; }
+  button.send:disabled { opacity: .45; cursor: default; }
+  .clip { background: var(--panel); border: 1px solid var(--line); color: var(--muted); border-radius: 12px;
+          width: 46px; font-size: 20px; cursor: pointer; }
+  .files { max-width: 760px; margin: 0 auto 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .file { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px;
+          font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; max-width: 100%; }
+  .file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+  .file button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0; }
+  .msg.user img { max-width: 140px; max-height: 140px; border-radius: 8px; display: block; margin-bottom: 6px; }
+  .msg.user .fname { font-size: 13px; color: var(--muted); }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink);
+           width: min(360px, calc(100vw - 32px)); padding: 20px; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+                 color: var(--ink); font: inherit; margin-top: 8px; }
+  #key { font-size: 24px; letter-spacing: 8px; text-align: center; }
+  #srvRow { display: none; } #srvRow.show { display: block; }
+  .small { color: var(--muted); font-size: 12px; margin-top: 12px; cursor: pointer; }
+  dialog .row { display: flex; justify-content: flex-end; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vidhi Sahayak</h1>
+  <button class="newc" id="newBtn" type="button">New</button>
+  <button class="gear" id="settingsBtn" type="button" aria-label="Settings">⚙</button>
+</header>
+<main id="log"></main>
+<form id="f">
+  <div class="files" id="files"></div>
+  <div class="bar">
+    <button class="clip" id="clip" type="button" aria-label="Attach files">📎</button>
+    <input id="picker" type="file" multiple hidden accept="image/*,.heic,.pdf,.doc,.docx,.rtf,.txt">
+    <textarea id="q" placeholder="Ask anything…"></textarea>
+    <button class="send" id="send" type="submit">Ask</button>
+  </div>
+</form>
+
+<dialog id="settings">
+  <form method="dialog" id="settingsForm">
+    <input id="key" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="Code" autocomplete="off">
+    <div id="srvRow"><input id="srv" placeholder="Server address" autocomplete="off"></div>
+    <div class="small" id="srvToggle">Server</div>
+    <div class="row"><button class="send" type="submit" style="padding:9px 18px">OK</button></div>
+  </form>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('vs_' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('vs_' + k, v); } catch (e) {} }
+};
+const params = new URLSearchParams(location.search);
+if (params.get('server')) { store.set('server', params.get('server').replace(/\/+$/, '')); history.replaceState(null, '', location.pathname); }
+// The laptop publishes its current address in config.json, so the plain link always finds the live server.
+const configReady = fetch('config.json?t=' + Date.now(), {cache: 'no-store'})
+  .then(r => r.ok ? r.json() : null)
+  .then(c => { if (c && c.server) store.set('server', c.server.replace(/\/+$/, '')); })
+  .catch(() => {});
+const localHost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const server = () => store.get('server') || (localHost ? location.origin : '');
+let conversationId = null;
+
+function openSettings() { $('srv').value = server(); $('key').value = store.get('key'); $('settings').showModal(); $('key').focus(); }
+$('settingsBtn').onclick = openSettings;
+$('newBtn').onclick = () => { conversationId = null; $('log').innerHTML = ''; pending = []; showFiles(); $('q').focus(); };
+$('srvToggle').onclick = () => $('srvRow').classList.toggle('show');
+$('settingsForm').addEventListener('submit', () => {
+  store.set('key', $('key').value.trim());
+  if ($('srv').value.trim()) store.set('server', $('srv').value.trim().replace(/\/+$/, ''));
+  conversationId = null;
+});
+
+function add(cls, html) {
+  const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html;
+  $('log').appendChild(d); d.scrollIntoView({block: 'end'}); return d;
+}
+// links to documents made on the laptop come back as /v1/files/...; point them at the live server and open in a tab
+DOMPurify.addHook('afterSanitizeAttributes', node => {
+  if (node.tagName !== 'A') return;
+  const href = node.getAttribute('href') || '';
+  if (href.startsWith('/v1/files/')) node.setAttribute('href', server() + href);
+  if (/\/v1\/files\//.test(node.getAttribute('href') || '')) node.classList.add('doc');
+  node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener');
+});
+const render = md => DOMPurify.sanitize(marked.parse(md || ''), {ADD_ATTR: ['target']});
+const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+let pending = [];  // [{name, type, data(base64), preview}]
+const MAX_FILES = 5;
+function showFiles() {
+  $('files').innerHTML = '';
+  pending.forEach((f, i) => {
+    const d = document.createElement('div'); d.className = 'file';
+    d.innerHTML = '<span></span><button type="button" aria-label="Remove">✕</button>';
+    d.querySelector('span').textContent = f.name;
+    d.querySelector('button').onclick = () => { pending.splice(i, 1); showFiles(); };
+    $('files').appendChild(d);
+  });
+}
+const toB64 = buf => { let s = ''; const b = new Uint8Array(buf);
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s); };
+async function shrinkImage(file) {
+  // phone photos: resize to max 2000 px JPEG before upload (keeps them readable, much smaller)
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.85);
+    return {name: file.name.replace(/\.[^.]+$/, '') + '.jpg', type: 'image/jpeg', data: url.split(',')[1], preview: url};
+  } catch (e) { return null; }  // e.g. HEIC the browser can't decode: send as-is, the server converts it
+}
+$('clip').onclick = () => $('picker').click();
+$('picker').onchange = async () => {
+  for (const file of $('picker').files) {
+    if (pending.length >= MAX_FILES) break;
+    let item = file.type.startsWith('image/') && !/heic|heif/i.test(file.type) ? await shrinkImage(file) : null;
+    if (!item) item = {name: file.name, type: file.type || '', data: toB64(await file.arrayBuffer()), preview: null};
+    pending.push(item);
+  }
+  $('picker').value = ''; showFiles();
+};
+
+async function ask(text) {
+  await configReady;
+  if (!server()) { openSettings(); return; }
+  const files = pending; pending = []; showFiles();
+  const shown = files.map(f => f.preview ? '<img src="' + f.preview + '" alt="">' : '<div class="fname">📄 ' + esc(f.name) + '</div>').join('');
+  add('user', shown + esc(text));
+  const box = add('bot', '<span class="dots"></span>');
+  let answer = ''; $('send').disabled = true;
+  try {
+    const res = await fetch(server() + '/v1/chat', {method: 'POST',
+      headers: Object.assign({'Content-Type': 'application/json'}, store.get('key') ? {'Authorization': 'Bearer ' + store.get('key')} : {}),
+      body: JSON.stringify({conversation_id: conversationId, message: text, stream: true,
+                            attachments: files.map(({name, type, data}) => ({name, type, data}))})});
+    if (!res.ok) {
+      let msg = res.statusText; try { msg = (await res.json()).error.message; } catch (e) {}
+      if (res.status === 404) conversationId = null;
+      box.innerHTML = '<span class="error">' + esc(msg) + '</span>';
+      if (res.status === 401) { store.set('key', ''); openSettings(); }
+      return;
+    }
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+    while (true) {
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith('data: ')) continue;
+        const ev = JSON.parse(line.slice(6));
+        if (ev.type === 'conversation') conversationId = ev.conversation_id;
+        else if (ev.type === 'text') { answer += ev.text; box.innerHTML = render(answer); box.scrollIntoView({block: 'end'}); }
+        else if (ev.type === 'error') { box.innerHTML = (answer ? render(answer) : '') + '<p class="error">' + esc(ev.text) + '</p>'; }
+      }
+    }
+    if (!answer && box.querySelector('.dots')) box.innerHTML = '<span class="error">No answer received. Please try again.</span>';
+  } catch (e) { box.innerHTML = '<span class="error">Can\'t reach the server right now.</span>'; }
+  finally { $('send').disabled = false; $('q').focus(); }
+}
+$('f').addEventListener('submit', e => { e.preventDefault(); const t = $('q').value.trim();
+  if (t || pending.length) { $('q').value = ''; ask(t); } });
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('f').requestSubmit(); } });
+configReady.then(() => { if (!localHost && !server()) openSettings(); });
+</script>
+</body>
+</html>
