@@ -49,6 +49,11 @@
   #scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; position: relative; }
   #log { max-width: var(--col); margin: 0 auto; padding: 8px 16px 24px; }
   .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; }
+  .disclose { max-width: 440px; margin: 14px auto 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+  .consent { font-size: 12.5px; color: var(--muted); max-width: 300px; line-height: 1.5; }
+  .consent a, .legal a, .disclose a { color: var(--ink-2); }
+  .legal { max-width: var(--col); margin: 8px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
+  .upnote { flex-basis: 100%; font-size: 12.5px; color: var(--muted); padding: 2px 4px 0; }
   .gate { margin-top: 18px; display: grid; justify-items: center; gap: 14px; pointer-events: auto; }
   .gate p { margin: 0; color: var(--muted); font-size: 15px; }
   .gate[hidden] { display: none; }
@@ -171,8 +176,11 @@
 
 <main id="scroller" aria-live="polite">
   <div class="empty" id="empty"><div><h2 id="emptyName">Service Rules Assistant</h2>
-    <div class="gate" id="gate" hidden><p>Sign in with Google to ask a question.</p><div id="gbtn"></div></div></div></div>
-  <div class="acct-menu" id="acctMenu" hidden><p class="who" id="acctWho"></p><button type="button" id="signOut">Sign out</button></div>
+    <p class="disclose">You’re chatting with an AI (Claude Opus 5.5) that answers from official documents and cites them. It can make mistakes: check the cited rule. It explains rules; it isn’t legal advice, and it isn’t a government service.</p>
+    <div class="gate" id="gate" hidden><p>Sign in with Google to ask a question.</p><div id="gbtn"></div>
+      <p class="consent">By signing in, you agree to the <a href="https://sherlyguides.github.io/service-rules-assistant/terms/" target="_blank" rel="noopener">Terms</a> and <a href="https://sherlyguides.github.io/service-rules-assistant/privacy/" target="_blank" rel="noopener">Privacy Policy</a>. For users 18 and over.</p></div></div></div>
+  <div class="acct-menu" id="acctMenu" hidden><p class="who" id="acctWho"></p><button type="button" id="signOut">Sign out</button>
+    <button type="button" onclick="window.open('https://sherlyguides.github.io/service-rules-assistant/privacy/','_blank','noopener')">Privacy and deleting my data</button></div>
   <div id="log"></div>
 </main>
 
@@ -194,6 +202,7 @@
       </button>
     </div>
   </form>
+  <p class="legal">AI answers from official documents · Check the cited rule · <a href="https://sherlyguides.github.io/service-rules-assistant/terms/" target="_blank" rel="noopener">Terms</a> · <a href="https://sherlyguides.github.io/service-rules-assistant/privacy/" target="_blank" rel="noopener">Privacy</a></p>
 </footer>
 
 <dialog id="settings">
@@ -219,6 +228,8 @@ const DESK = document.documentElement.dataset.profile === 'practitioner' || /des
 if (DESK) { document.title = 'Legal Desk'; $('appName').textContent = $('emptyName').textContent = 'Legal Desk'; }
 
 const params = new URLSearchParams(location.search);
+if (params.get('q')) { const pre = params.get('q').slice(0, 500); history.replaceState(null, '', location.pathname);
+  setTimeout(() => { q.value = pre; grow(); refreshSend(); }, 0); }
 if (params.get('server')) { store.set('server', params.get('server').replace(/\/+$/, '')); history.replaceState(null, '', location.pathname); }
 // The laptop publishes its current address (and the always-on backup, if any) in config.json.
 const configReady = fetch('config.json?t=' + Date.now(), {cache: 'no-store'})
@@ -291,6 +302,7 @@ function showChips() {
     c.querySelector('button').onclick = () => { pending.splice(i, 1); showChips(); };
     $('chips').appendChild(c);
   });
+  if (pending.length) $('chips').insertAdjacentHTML('beforeend', '<p class="upnote">Attached files are stored with your question. Remove other people’s personal details first.</p>');
   refreshSend();
 }
 const toB64 = buf => { let s = ''; const b = new Uint8Array(buf);
