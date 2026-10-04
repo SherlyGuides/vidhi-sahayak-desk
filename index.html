@@ -49,6 +49,19 @@
   #scroller { flex: 1; overflow-y: auto; overscroll-behavior: contain; position: relative; }
   #log { max-width: var(--col); margin: 0 auto; padding: 8px 16px 24px; }
   .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; pointer-events: none; }
+  .gate { margin-top: 18px; display: grid; justify-items: center; gap: 14px; pointer-events: auto; }
+  .gate p { margin: 0; color: var(--muted); font-size: 15px; }
+  .gate[hidden] { display: none; }
+  .acct { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface-2) center / cover;
+          color: var(--ink-2); font: 600 13px/1 var(--font); cursor: pointer; display: grid; place-items: center; margin-left: 4px; }
+  .acct[hidden] { display: none; }
+  .acct-menu { position: absolute; right: 12px; top: calc(56px + env(safe-area-inset-top)); background: var(--surface); border: 1px solid var(--line);
+               border-radius: 14px; padding: 12px; min-width: 220px; z-index: 30; box-shadow: 0 12px 32px rgba(0, 0, 0, .45); }
+  .acct-menu[hidden] { display: none; }
+  .acct-menu .who { font-size: 13px; color: var(--muted); margin: 0 4px 10px; overflow-wrap: anywhere; }
+  .acct-menu button { width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 9px 10px; cursor: pointer; font-size: 14px; }
+  .acct-menu button:hover { background: var(--surface-2); }
+  textarea:disabled { opacity: .5; }
   .empty h2 { margin: 0 0 6vh; font: 400 clamp(28px, 5vw, 38px)/1.2 var(--serif); color: var(--ink-2); letter-spacing: -.2px; }
   .turn { margin: 22px 0; animation: rise .18s ease-out; }
   @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -147,6 +160,7 @@
 <body>
 <header id="top">
   <div class="brand"><h1 id="appName">Service Rules Assistant</h1></div>
+  <button class="acct" id="acct" type="button" aria-label="Account" hidden></button>
   <button class="hbtn" id="newBtn" type="button" title="New chat" aria-label="New chat">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
   </button>
@@ -156,7 +170,9 @@
 </header>
 
 <main id="scroller" aria-live="polite">
-  <div class="empty" id="empty"><h2 id="emptyName">Service Rules Assistant</h2></div>
+  <div class="empty" id="empty"><div><h2 id="emptyName">Service Rules Assistant</h2>
+    <div class="gate" id="gate" hidden><p>Sign in with Google to ask a question.</p><div id="gbtn"></div></div></div></div>
+  <div class="acct-menu" id="acctMenu" hidden><p class="who" id="acctWho"></p><button type="button" id="signOut">Sign out</button></div>
   <div id="log"></div>
 </main>
 
@@ -208,7 +224,8 @@ if (params.get('server')) { store.set('server', params.get('server').replace(/\/
 const configReady = fetch('config.json?t=' + Date.now(), {cache: 'no-store'})
   .then(r => r.ok ? r.json() : null)
   .then(c => { if (c && c.server) store.set('server', c.server.replace(/\/+$/, ''));
-               if (c) store.set('fallback', (c.fallback || '').replace(/\/+$/, '')); })
+               if (c) store.set('fallback', (c.fallback || '').replace(/\/+$/, ''));
+               if (c) store.set('gcid', c.google_client_id || ''); })
   .catch(() => {});
 const localHost = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const server = () => store.get('server') || (localHost ? location.origin : '');
@@ -354,7 +371,7 @@ async function post(srv, body, signal) {
   const onAbort = () => ctl.abort(); signal.addEventListener('abort', onAbort);
   try {
     return await fetch(srv + '/v1/chat', {method: 'POST', signal: ctl.signal,
-      headers: Object.assign({'Content-Type': 'application/json'}, store.get('key') ? {'Authorization': 'Bearer ' + store.get('key')} : {}),
+      headers: Object.assign({'Content-Type': 'application/json'}, authHeader()),
       body: JSON.stringify(body)});
   } finally { clearTimeout(timer); signal.removeEventListener('abort', onAbort); }
 }
@@ -387,7 +404,10 @@ async function run(text, files, isRetry) {
     if (!res.ok) {
       let msg = res.statusText; try { msg = (await res.json()).error.message; } catch (e) {}
       fail(t, msg, res.status >= 500 ? {text, files} : null);
-      if (res.status === 401) { store.set('key', ''); openSettings(); }
+      if (res.status === 401) {
+        if (store.get('gcid')) { signedOut(); q.value = text; grow(); refreshSend(); t.remove(); }
+        else { store.set('key', ''); openSettings(); }
+      }
       return;
     }
     if (used !== convServer) { convServer = used; conversationId = null; }
@@ -439,7 +459,51 @@ $('settingsForm').addEventListener('submit', () => {
   if ($('srv').value.trim()) store.set('server', $('srv').value.trim().replace(/\/+$/, ''));
   conversationId = null; convServer = null;
 });
-configReady.then(() => { if (!localHost && !servers().length) openSettings(); });
+// ---------- Sign in with Google (on when config.json carries google_client_id)
+function tokenClaims(tok) {
+  try {
+    const b = tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const p = JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4)))));
+    return p.exp * 1000 > Date.now() + 60000 ? p : null;
+  } catch (e) { return null; }
+}
+function authHeader() {
+  const g = store.get('gtoken');
+  if (store.get('gcid') && tokenClaims(g)) return {'Authorization': 'Bearer ' + g};
+  return store.get('key') ? {'Authorization': 'Bearer ' + store.get('key')} : {};
+}
+function showAccount(p) {
+  const a = $('acct');
+  a.hidden = !p; $('gate').hidden = !!p; q.disabled = !p; q.placeholder = p ? 'Ask anything…' : 'Sign in to ask…';
+  if (!p) { $('acctMenu').hidden = true; return; }
+  a.title = p.email || '';
+  if (p.picture) { a.style.backgroundImage = 'url("' + p.picture + '")'; a.textContent = ''; }
+  else { a.style.backgroundImage = ''; a.textContent = (p.given_name || p.email || '?').charAt(0).toUpperCase(); }
+  $('acctWho').textContent = 'Signed in as ' + (p.email || '');
+}
+function signedOut() {
+  store.set('gtoken', ''); showAccount(null);
+  $('empty').style.display = ''; $('log').innerHTML = ''; conversationId = null; convServer = null; turns = [];
+  if (window.google?.accounts?.id) google.accounts.id.prompt();
+}
+function startGoogle() {
+  const cid = store.get('gcid'); if (!cid) return;
+  showAccount(tokenClaims(store.get('gtoken')));
+  const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+  s.onload = () => {
+    google.accounts.id.initialize({client_id: cid, auto_select: true, cancel_on_tap_outside: false, use_fedcm_for_prompt: true,
+      callback: r => { store.set('gtoken', r.credential); showAccount(tokenClaims(r.credential)); if (!touch) q.focus(); }});
+    google.accounts.id.renderButton($('gbtn'), {theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with'});
+    if (!tokenClaims(store.get('gtoken'))) google.accounts.id.prompt();
+    // a Google sign-in lasts about an hour; renew quietly before it runs out
+    setInterval(() => { if (!tokenClaims(store.get('gtoken'))) google.accounts.id.prompt(); }, 5 * 60 * 1000);
+  };
+  document.head.appendChild(s);
+}
+$('acct').onclick = e => { e.stopPropagation(); $('acctMenu').hidden = !$('acctMenu').hidden; };
+document.addEventListener('click', e => { if (!$('acctMenu').contains(e.target)) $('acctMenu').hidden = true; });
+$('signOut').onclick = () => { if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect(); signedOut(); };
+configReady.then(() => { startGoogle(); if (!localHost && !servers().length) openSettings(); });
 if (!touch) q.focus();
 </script>
 </body>
