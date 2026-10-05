@@ -126,6 +126,18 @@
           display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
   .tbtn:hover { background: var(--surface); color: var(--ink); }
   .error { color: var(--warn); margin-top: 6px; }
+  .fbbox { margin-top: 8px; display: flex; gap: 8px; align-items: flex-end; max-width: 560px; }
+  .fbbox textarea { flex: 1; min-height: 60px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 10px; font-size: 15px; }
+  .fbsend { background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink); border-radius: 10px;
+    padding: 8px 14px; cursor: pointer; font-size: 14px; }
+  .thanks { font-size: 13px; color: var(--muted); padding: 6px 8px; }
+  .hsuggest { background: none; border: 1px solid var(--line); color: var(--ink-2); border-radius: 999px; padding: 6px 12px;
+    font-size: 13.5px; cursor: pointer; margin-right: 4px; }
+  .hsuggest:hover { background: var(--surface); color: var(--ink); }
+  dialog select, dialog textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+  dialog textarea { min-height: 110px; resize: vertical; }
   .retry { margin-top: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px;
            cursor: pointer; font-size: 14px; }
   #toBottom { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 6px); background: var(--surface-2);
@@ -182,6 +194,7 @@
 <body>
 <header id="top">
   <div class="brand"><h1 id="appName">Service Rules Assistant</h1></div>
+  <button class="hsuggest" id="suggestBtn" type="button">Suggest</button>
   <button class="acct" id="acct" type="button" aria-label="Account" hidden></button>
   <button class="hbtn" id="newBtn" type="button" title="New chat" aria-label="New chat">
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -202,7 +215,7 @@
       </div></div>
     <p class="disclose public-only">You’re chatting with an AI (Claude Opus 5.5) that answers from official documents and cites them. It can make mistakes: check the cited rule. It explains rules; it isn’t legal advice, and it isn’t a government service.</p>
     <div class="gate" id="gate" hidden><p>Sign in with Google to ask a question.</p><div id="gbtn"></div>
-      <p class="consent">By signing in, you agree to the <a href="https://sherlyguides.github.io/service-rules-assistant/terms/" target="_blank" rel="noopener">Terms</a> and <a href="https://sherlyguides.github.io/service-rules-assistant/privacy/" target="_blank" rel="noopener">Privacy Policy</a>. For users 18 and over.</p></div></div></div>
+      <p class="consent">By signing in, you agree to the <a href="https://sherlyguides.github.io/service-rules-assistant/terms/" target="_blank" rel="noopener">Terms</a> and <a href="https://sherlyguides.github.io/service-rules-assistant/privacy/" target="_blank" rel="noopener">Privacy Policy</a>.</p></div></div></div>
   <div class="acct-menu" id="acctMenu" hidden><p class="who" id="acctWho"></p><button type="button" id="signOut">Sign out</button>
     <button type="button" onclick="window.open('https://sherlyguides.github.io/service-rules-assistant/privacy/','_blank','noopener')">Privacy and deleting my data</button></div>
   <div id="log"></div>
@@ -229,6 +242,25 @@
   <p class="legal desk-only">AI research and drafting · Check every citation before filing</p>
   <p class="legal public-only">AI answers from official documents · Check the cited rule · <a href="https://sherlyguides.github.io/service-rules-assistant/terms/" target="_blank" rel="noopener">Terms</a> · <a href="https://sherlyguides.github.io/service-rules-assistant/privacy/" target="_blank" rel="noopener">Privacy</a></p>
 </footer>
+
+<dialog id="suggest">
+  <form method="dialog" id="suggestForm">
+    <h3>Tell us what you want</h3>
+    <label for="sgKind">What is it about?</label>
+    <select id="sgKind">
+      <option value="document">Add a document or order</option>
+      <option value="feature">A new feature (e.g. fill a form for me)</option>
+      <option value="wrong_answer">An answer was wrong</option>
+      <option value="other">Something else</option>
+    </select>
+    <label for="sgText">Tell us more</label>
+    <textarea id="sgText" required placeholder="What would you like to happen?"></textarea>
+    <label for="sgContact">Phone or email, if you want a reply (optional)</label>
+    <input id="sgContact" autocomplete="email">
+    <p class="thanks" id="sgMsg" aria-live="polite"></p>
+    <div class="row2" style="gap:8px"><button class="fbsend" type="button" id="sgCancel">Cancel</button><button class="ok" type="submit">Send</button></div>
+  </form>
+</dialog>
 
 <dialog id="settings">
   <form method="dialog" id="settingsForm">
@@ -392,8 +424,42 @@ function finish(t, answer) {
   const copy = document.createElement('button'); copy.className = 'tbtn'; copy.type = 'button'; copy.innerHTML = ICON.copy + 'Copy';
   copy.onclick = async () => { try { await navigator.clipboard.writeText(answer); copy.innerHTML = ICON.check + 'Copied';
     setTimeout(() => copy.innerHTML = ICON.copy + 'Copy', 1500); } catch (e) {} };
-  tools.appendChild(copy); t.appendChild(tools);
+  tools.appendChild(copy);
+  const mk = (label, fn) => { const b = document.createElement('button'); b.className = 'tbtn'; b.type = 'button'; b.textContent = label; b.onclick = fn; tools.appendChild(b); return b; };
+  const done = msg => { tools.querySelectorAll('.fb').forEach(b => b.remove()); const s = document.createElement('span'); s.className = 'thanks'; s.textContent = msg; tools.appendChild(s); };
+  const meta = {question: (t.dataset.q || '').slice(0, 2000), answer: answer.slice(0, 2000)};
+  mk('Helpful', () => { sendFeedback(Object.assign({kind: 'helpful'}, meta)); done('Thanks for telling us.'); }).classList.add('fb');
+  mk('Not helpful', () => {
+    done('');
+    const box = document.createElement('div'); box.className = 'fbbox';
+    box.innerHTML = '<textarea placeholder="What was wrong or missing?"></textarea><button class="fbsend" type="button">Send</button>';
+    box.querySelector('button').onclick = () => { sendFeedback(Object.assign({kind: 'not_helpful', text: box.querySelector('textarea').value}, meta));
+      box.replaceWith(Object.assign(document.createElement('p'), {className: 'thanks', textContent: 'Thanks. This goes straight to the team.'})); };
+    t.appendChild(box); box.querySelector('textarea').focus();
+  }).classList.add('fb');
+  t.appendChild(tools);
 }
+async function sendFeedback(body) {
+  await configReady;
+  for (const srv of servers()) {
+    try {
+      const r = await fetch(srv + '/v1/feedback', {method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, authHeader()),
+        body: JSON.stringify(Object.assign({page: DESK ? 'desk' : 'app'}, body))});
+      if (r.ok) return true;
+    } catch (e) {}
+  }
+  return false;
+}
+$('suggestBtn').onclick = () => { $('sgMsg').textContent = ''; $('suggest').showModal(); $('sgText').focus(); };
+$('sgCancel').onclick = () => $('suggest').close();
+$('suggestForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!$('sgText').value.trim()) return;
+  $('sgMsg').textContent = 'Sending…';
+  const ok = await sendFeedback({kind: $('sgKind').value, text: $('sgText').value, contact: $('sgContact').value});
+  $('sgMsg').textContent = ok ? 'Thank you. It has reached the team.' : 'Could not send right now. Please try again in a minute.';
+  if (ok) { $('sgText').value = ''; setTimeout(() => $('suggest').close(), 1500); }
+});
 function fail(t, msg, retry) {
   t.querySelector('.status')?.remove();
   const p = document.createElement('div'); p.className = 'error'; p.textContent = msg; t.appendChild(p);
@@ -418,6 +484,7 @@ async function run(text, files, isRetry) {
   if (!servers().length) { openSettings(); return; }
   if (!isRetry) addUser(text, files);
   const t = addBot(), box = t.querySelector('.answer'), status = t.querySelector('.status span');
+  t.dataset.q = text;
   let answer = '';
   controller = new AbortController(); setBusy(true);
   const attachments = files.map(({name, type, data}) => ({name, type, data}));
