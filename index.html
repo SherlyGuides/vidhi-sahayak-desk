@@ -528,6 +528,7 @@ async function run(text, files, isRetry) {
         if (ev.type === 'conversation') conversationId = ev.conversation_id;
         else if (ev.type === 'status' && status) status.textContent = friendly(ev.text);
         else if (ev.type === 'text') { answer += ev.text; box.innerHTML = render(answer); follow(); }
+        else if (ev.type === 'reset') { answer = ''; box.innerHTML = ''; }
         else if (ev.type === 'error') { fail(t, ev.text, answer ? null : {text, files}); return; }
       }
     }
